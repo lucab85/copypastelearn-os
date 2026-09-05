@@ -108,46 +108,64 @@ function WorkspaceContent() {
     return `Evidence captured. The planner now recommends: ${nextBestAction(state).title}.`;
   };
 
-  const submit = () => {
-    const command = input.trim();
-    if (!command) return;
+  const runCommands = (rawCommands: string[]) => {
+    const commands = rawCommands.map((command) => command.trim()).filter(Boolean);
+    if (!commands.length) return;
 
-    const result = evaluateCommand(command, engine);
-    let nextState: EngineState = {
-      ...engine,
-      commands: [...engine.commands, command],
-      validators: result.validators,
-    };
+    let nextState = engine;
+    let batchLines: { type: string; text: string }[] = [];
+    let resetHistory = false;
+    let lastCommand = commands[commands.length - 1];
+    let lastSignal: string | undefined;
 
-    if (result.evidence) {
-      const event: EvidenceEvent = {
-        id: crypto.randomUUID(),
-        missionId: mission.id,
-        timestamp: new Date().toISOString(),
-        ...result.evidence,
+    for (const command of commands) {
+      const result = evaluateCommand(command, nextState);
+      nextState = {
+        ...nextState,
+        commands: [...nextState.commands, command],
+        validators: result.validators,
       };
-      nextState = { ...nextState, evidence: [event, ...engine.evidence].slice(0, 40) };
+
+      if (result.evidence) {
+        const event: EvidenceEvent = {
+          id: crypto.randomUUID(),
+          missionId: mission.id,
+          timestamp: new Date().toISOString(),
+          ...result.evidence,
+        };
+        nextState = { ...nextState, evidence: [event, ...nextState.evidence].slice(0, 40) };
+      }
+
+      if (result.output.includes("__CLEAR__")) {
+        resetHistory = true;
+        batchLines = [];
+      } else {
+        batchLines.push(
+          { type: "command", text: `$ ${command}` },
+          ...result.output.map((text) => ({
+            type: /error|failed|blocked|not found|unavailable/i.test(text)
+              ? "error"
+              : /created|finished|complete|running|ok|validated|pass|patched/i.test(text)
+                ? "success"
+                : "output",
+            text,
+          })),
+        );
+      }
+
+      lastCommand = command;
+      lastSignal = result.coachSignal;
     }
 
     setInput("");
-    setLines((previous) => {
-      if (result.output.includes("__CLEAR__")) return [];
-      const commandLine = { type: "command", text: `$ ${command}` };
-      const output = result.output.map((text) => ({
-        type: /error|failed|blocked|not found|unavailable/i.test(text)
-          ? "error"
-          : /created|finished|complete|running|ok|validated|pass|patched/i.test(text)
-            ? "success"
-            : "output",
-        text,
-      }));
-      return [...previous, commandLine, ...output];
-    });
+    setLines((previous) => resetHistory ? batchLines : [...previous, ...batchLines]);
     setEngine(nextState);
     commitState(nextState);
-    setCoach(coachFor(command, nextState, result.coachSignal));
+    setCoach(coachFor(lastCommand, nextState, lastSignal));
     requestAnimationFrame(() => inputRef.current?.focus());
   };
+
+  const submit = () => runCommands([input]);
 
   const handleLiveValidated = (payload: LiveValidationPayload) => {
     if (!payload.validated || !payload.evidence || engine.validators.liveValidated) return;
@@ -273,6 +291,13 @@ function WorkspaceContent() {
                 aria-label="Mission terminal command"
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
+                onPaste={(event) => {
+                  const pasted = event.clipboardData.getData("text");
+                  const commands = pasted.split(/\r?\n/).map((command) => command.trim()).filter(Boolean);
+                  if (commands.length <= 1) return;
+                  event.preventDefault();
+                  runCommands(commands);
+                }}
                 onKeyDown={(event) => {
                   if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
                   event.preventDefault();
