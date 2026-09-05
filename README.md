@@ -2,10 +2,12 @@
 
 AI-native technical learning: goals become missions, execution becomes evidence, and evidence updates a durable skill graph.
 
-## Alpha 4
+## Alpha 5
 
 - Wow landing, Command Center, mission catalog, skill graph and entitlement-aware library
 - Docker, Kubernetes and Terraform mission engine with deterministic validators
+- **First real validated mission:** `linux-service-recovery` runs in a durable Vercel Sandbox, injects real config drift, and grades the actual filesystem state with a server-side validator
+- Live Linux evidence flows into the same mission timeline, mastery calculation and shared skill graph as simulator evidence
 - Local-first progress plus optional PostgreSQL cloud sync
 - **Normalized learning records:** `user_skills`, `skill_evidence`, and `mission_runs` are materialized on sync, not only stored as a JSON blob
 - Clerk identity with demo fallback and protected application routes when configured
@@ -14,6 +16,8 @@ AI-native technical learning: goals become missions, execution becomes evidence,
 - AI SDK `ToolLoopAgent` for Coach / Reviewer / Incident with read-only learning tools
 - Curated CPL knowledge retrieval tool
 - **Durable LabSession:** named persistent Vercel Sandbox per Clerk user + mission, start/resume/exec/stop APIs, redacted telemetry, and a Live Lab drawer in the workspace
+- Goal intake now understands Linux alongside Docker, Kubernetes and Terraform and ranks missions from goal + role + mastery + prerequisites
+- Strict mission-ID validation on real lab APIs
 - CI typecheck + production Next build
 
 ## Run
@@ -60,7 +64,9 @@ Set `AI_GATEWAY_API_KEY`; `AI_MODEL` defaults to `openai/gpt-5.6-luna`. AI runs 
 
 Set `CPL_SANDBOX_MODE=vercel`. On Vercel, Sandbox authenticates using the platform identity/OIDC path. CPL derives one opaque named sandbox from `Clerk identity + mission`, resumes it across requests, and records only redacted command/output telemetry.
 
-The **Live Lab** drawer is intentionally separate from mission grading in Alpha 4. The deterministic simulators remain the grading source until mission-specific real lab images, validators and topology contracts are installed.
+The **Recover a broken Linux service config** mission is the first end-to-end live grading path. Starting its Live Lab creates an idempotent incident fixture under `/vercel/sandbox/cpl-mission` with `desired.env`, a drifted `runtime.env`, `service.log`, and `validate.sh`. The learner repairs the actual files and permissions. `POST /api/labs/validate` runs the deterministic validator inside the same sandbox; only a passing validator emits score-1 live evidence and can complete the mission.
+
+Other missions still use the deterministic simulators for grading while their real Docker/Kubernetes/Terraform environment contracts are being added.
 
 ## Architectural rule
 
