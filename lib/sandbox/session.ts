@@ -56,6 +56,18 @@ export async function validateLab(identityId: string, missionId: string) {
   return redacted;
 }
 
+export async function resetLab(identityId: string, missionId: string) {
+  const name = sandboxName(identityId, missionId);
+  const workdir = missionWorkdir(missionId);
+  if (!workdir) throw new Error("mission does not expose a resettable fixture");
+  const provider = new VercelSandboxProvider();
+  await provider.ensure(name);
+  await provider.execute(name, `rm -rf ${workdir}`);
+  const session = await ensureLab(identityId, missionId);
+  await recordLabEvent({ identityId, missionId, sandboxName: name, eventType: "lab.fixture.reset" });
+  return session;
+}
+
 export async function stopLab(identityId: string, missionId: string) {
   const name = sandboxName(identityId, missionId);
   const provider = new VercelSandboxProvider();

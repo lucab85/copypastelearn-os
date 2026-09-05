@@ -49,8 +49,9 @@ export function useProgress() {
 
   const saveMissionState = useCallback((state: EngineState, mastery: Record<string, number>) => setProgress(prev => ({ ...prev, skillMastery:{...prev.skillMastery,...mastery}, missionStates:{...prev.missionStates,[state.missionId]:state} })), []);
   const completeMission = useCallback((missionId: string, state: EngineState, mastery: Record<string, number>) => setProgress(prev => ({ ...prev, skillMastery:{...prev.skillMastery,...mastery}, missionStates:{...prev.missionStates,[missionId]:state}, completedMissions:Array.from(new Set([...prev.completedMissions,missionId])) })), []);
+  const resetMission = useCallback((missionId: string) => setProgress(prev => { const missionStates = {...prev.missionStates}; delete missionStates[missionId]; return {...prev, missionStates, completedMissions:prev.completedMissions.filter(id=>id!==missionId)}; }), []);
   const reset = useCallback(() => { setProgress(defaultProgress); try { localStorage.removeItem(KEY); } catch {} }, []);
   const unlock = useCallback((key: string) => setProgress(prev => ({...prev,entitlements:Array.from(new Set([...prev.entitlements,key]))})), []);
   const addEvidence = useCallback((state: EngineState, event: EvidenceEvent) => ({...state,evidence:[event,...state.evidence].slice(0,40)}), []);
-  return { progress, hydrated, syncState, saveMissionState, completeMission, reset, unlock, addEvidence };
+  return { progress, hydrated, syncState, saveMissionState, completeMission, resetMission, reset, unlock, addEvidence };
 }
