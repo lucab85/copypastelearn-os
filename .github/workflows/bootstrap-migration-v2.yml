@@ -1,0 +1,27 @@
+name: Bootstrap migrated source v2
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/bootstrap-migration-v2.yml]
+permissions:
+  contents: write
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore verified source tree
+        shell: bash
+        env:
+          SOURCE_ARTIFACT_URL: "https://sdmntprdenmarkeast.oaiusercontent.com/files/00000000-8b3c-8210-9105-6a961c018ed7/raw?se=2026-09-05T08%3A40%3A45Z&sp=r&sv=2026-02-06&sr=b&scid=9004f2df-945b-5252-9750-7a1445041039&skoid=82a3371f-2f6c-4f81-8a78-2701b362559b&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-09-05T05%3A40%3A14Z&ske=2026-09-06T05%3A40%3A14Z&sks=b&skv=2026-02-06&sig=XhWN9ykYJKw4Y32p7gQITli2Sa66Oz0iJyasRpjZRpo%3D"
+        run: |
+          curl -fsSL "$SOURCE_ARTIFACT_URL" -o /tmp/source-artifact.zip
+          mkdir -p /tmp/source-artifact
+          unzip -q /tmp/source-artifact.zip -d /tmp/source-artifact
+          tar -xzf /tmp/source-artifact/copypastelearn-os.tgz
+          rm -f .github/workflows/bootstrap-migration-v2.yml .github/workflows/ci.yml
+          git config user.name "Luca Berton"
+          git config user.email "luca@lucaberton.it"
+          git add -A
+          git commit -m "feat: migrate verified CopyPasteLearn OS alpha"
+          git push origin HEAD:main
