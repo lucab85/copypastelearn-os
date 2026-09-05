@@ -19,16 +19,18 @@ export type GoalPlan = {
 };
 
 const domainTerms: Record<string, string[]> = {
+  linux: ["linux","systemd","service","permissions","chmod","logs","shell","server","operations","sysadmin"],
   docker: ["docker","container","containers","image","images","containerize","containerise"],
   kubernetes: ["kubernetes","k8s","cluster","helm","pod","pods","service mesh","platform engineer","platform engineering"],
   terraform: ["terraform","iac","infrastructure as code","drift","state","hcl","cloud infrastructure"],
 };
 
 const roleBias: Record<string, Record<string, number>> = {
-  "platform engineer": { kubernetes: 1.2, docker: .7, terraform: .8 },
-  sre: { kubernetes: 1, docker: .5, terraform: .55 },
-  devops: { docker: .8, kubernetes: .75, terraform: .75 },
-  "cloud engineer": { terraform: 1.1, kubernetes: .55, docker: .4 },
+  "platform engineer": { linux: .45, kubernetes: 1.2, docker: .7, terraform: .8 },
+  sre: { linux: .8, kubernetes: 1, docker: .5, terraform: .55 },
+  devops: { linux: .65, docker: .8, kubernetes: .75, terraform: .75 },
+  "cloud engineer": { linux: .4, terraform: 1.1, kubernetes: .55, docker: .4 },
+  "backend engineer": { linux: .7, docker: .7, kubernetes: .35, terraform: .2 },
 };
 
 function uniqueSkills(missionId: string) {
@@ -51,8 +53,8 @@ export function planGoal(input: GoalPlanInput): GoalPlan {
     const lexical = (domainTerms[mission.domain] || []).reduce((score,term)=>score + (text.includes(term) ? 1 : 0),0);
     const role = roleBias[(input.role || "").toLowerCase()]?.[mission.domain] || 0;
     const completionPenalty = completed.has(mission.id) ? 2 : 0;
-    const prerequisiteBonus = mission.domain === "docker" ? .15 : 0;
-    return { mission, score: lexical * 1.6 + role + gapSignal + prerequisiteBonus - completionPenalty };
+    const foundationBonus = mission.domain === "linux" ? .18 : mission.domain === "docker" ? .14 : 0;
+    return { mission, score: lexical * 1.6 + role + gapSignal + foundationBonus - completionPenalty };
   }).sort((a,b)=>b.score-a.score);
 
   const winner = scored[0].mission;
@@ -63,7 +65,8 @@ export function planGoal(input: GoalPlanInput): GoalPlan {
   }).sort((a,b)=>b.gap-a.gap);
   const prereqIds = Array.from(new Set(required.flatMap(id=>skillCatalog.find(s=>s.id===id)?.prerequisites||[])));
   const missingPrerequisites = prereqIds.map(id=>{const skill=skillCatalog.find(s=>s.id===id)!;return{id,label:skill.label,current:mastery[id]??skill.mastery};}).filter(x=>x.current<.55);
-  const confidence = Math.min(.97, .55 + Math.max(0, scored[0].score - scored[1]?.score || 0) * .08 + (text.length>18?.08:0));
+  const lead = scored[0].score - (scored[1]?.score ?? 0);
+  const confidence = Math.min(.97, .55 + Math.max(0, lead) * .08 + (text.length>18?.08:0));
   const entryMode = input.experience === "production" && missingPrerequisites.length === 0 ? "challenge" : "guided";
   const topGap = skillGaps[0];
   const rationale = missingPrerequisites.length

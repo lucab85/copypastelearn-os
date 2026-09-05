@@ -1,6 +1,9 @@
 import type { MissionDefinition, SkillState } from "./types";
 
 export const skillCatalog: SkillState[] = [
+  { id: "linux-service-config", label: "Service configuration", domain: "linux", mastery: 0.28, target: 0.8, evidence: 0, status: "learning" },
+  { id: "linux-permissions", label: "File permissions", domain: "linux", mastery: 0.22, target: 0.8, evidence: 0, status: "learning", prerequisites: ["linux-service-config"] },
+  { id: "linux-observability", label: "Log-driven diagnosis", domain: "linux", mastery: 0.24, target: 0.8, evidence: 0, status: "learning" },
   { id: "docker-image", label: "Image construction", domain: "docker", mastery: 0.42, target: 0.8, evidence: 0, status: "learning" },
   { id: "container-runtime", label: "Container runtime", domain: "docker", mastery: 0.31, target: 0.8, evidence: 0, status: "learning", prerequisites: ["docker-image"] },
   { id: "container-networking", label: "Port & network model", domain: "docker", mastery: 0.22, target: 0.8, evidence: 0, status: "learning", prerequisites: ["container-runtime"] },
@@ -15,6 +18,18 @@ export const skillCatalog: SkillState[] = [
 ];
 
 export const missions: MissionDefinition[] = [
+  {
+    id: "linux-service-recovery", slug: "linux-service-recovery", shortTitle: "Recover a Linux service", title: "Recover a broken Linux service config",
+    description: "Diagnose a real configuration drift, repair it safely and prove the filesystem state with a server-side validator.",
+    outcome: "Match runtime config to declared config and secure the runtime file at mode 600.", domain: "linux", difficulty: "Foundation", duration: "15 min", requiredEntitlement: "mission:linux-service-recovery", accent: "#ffca5a", liveValidator: "linux-service-recovery-v1",
+    starterLines: ["CPL Linux mission · persistent sandbox · live validator available", "Incident: the service is unhealthy after an out-of-band configuration change", "Use the LIVE LAB drawer to inspect and repair the real filesystem."],
+    steps: [
+      { id: "inspect", title: "Inspect", eyebrow: "01 / SIGNAL", description: "Read logs and compare declared versus runtime configuration.", skillIds: ["linux-observability", "linux-service-config", "independent-debugging"] },
+      { id: "hypothesis", title: "Explain", eyebrow: "02 / REASON", description: "Identify the drift and the unsafe file mode before changing state.", skillIds: ["linux-service-config", "linux-permissions", "independent-debugging"] },
+      { id: "repair", title: "Repair", eyebrow: "03 / CHANGE", description: "Restore the desired environment and secure runtime.env.", skillIds: ["linux-service-config", "linux-permissions"] },
+      { id: "prove", title: "Validate", eyebrow: "04 / PROOF", description: "Run the server-side live validator and commit evidence.", skillIds: ["linux-service-config", "linux-permissions", "linux-observability", "independent-debugging"] },
+    ],
+  },
   {
     id: "docker-production", slug: "docker-production", shortTitle: "Ship a container", title: "Ship a production container",
     description: "Build, run, expose and validate a real service path without passive checkboxes.",
@@ -54,6 +69,11 @@ export const missions: MissionDefinition[] = [
   },
 ];
 
+export function findMission(id?: string | null) {
+  if (!id) return undefined;
+  return missions.find((mission) => mission.id === id || mission.slug === id);
+}
+
 export function getMission(id?: string | null) {
-  return missions.find((mission) => mission.id === id || mission.slug === id) ?? missions[0];
+  return findMission(id) ?? missions[0];
 }

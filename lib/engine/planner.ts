@@ -30,6 +30,30 @@ function evaluateDocker(command: string, current: EngineState): EvaluationResult
   return { validators, output, evidence, coachSignal };
 }
 
+function evaluateLinux(command: string, current: EngineState): EvaluationResult {
+  const c = command.trim().toLowerCase();
+  const validators = { ...current.validators };
+  const output: string[] = [];
+  let evidence: EvaluationResult["evidence"];
+  let coachSignal: EvaluationResult["coachSignal"] = "progress";
+  if (c === "help") return { validators, output: ["Live mission tools: ls -la, cat service.log, diff -u desired.env runtime.env, stat -c '%a' runtime.env, cp, chmod, ./validate.sh", "Use the LIVE LAB drawer for the real filesystem; this terminal mirrors the learning signals."], coachSignal };
+  if (c === "ls" || c === "ls -la") { validators.workspaceInspected = true; output.push("README.md  desired.env  runtime.env  service.log  validate.sh"); evidence = ev("Inspected Linux incident workspace", ["linux-service-config", "independent-debugging"], .55, "command"); }
+  else if (c.includes("cat service.log")) { validators.logsInspected = true; output.push("service boot version=2.4.1\nconfig loaded port=9000 log_level=debug feature_flag=true\nhealth probe failed expected_port=8080 actual_port=9000\nwarning runtime.env permissions are broader than policy"); evidence = ev("Used service logs to establish failure signal", ["linux-observability", "independent-debugging"], .9, "command"); coachSignal = "debug"; }
+  else if (c.includes("diff") && c.includes("desired.env") && c.includes("runtime.env")) { validators.configInspected = true; validators.driftFound = true; output.push("-PORT=8080\n-LOG_LEVEL=info\n-FEATURE_FLAG=false\n+PORT=9000\n+LOG_LEVEL=debug\n+FEATURE_FLAG=true"); evidence = ev("Confirmed runtime configuration drift", ["linux-service-config", "independent-debugging"], 1, "command"); coachSignal = "debug"; }
+  else if (c.includes("cat desired.env")) { validators.configInspected = true; output.push("PORT=8080\nLOG_LEVEL=info\nFEATURE_FLAG=false"); evidence = ev("Read declared service configuration", ["linux-service-config"], .75, "command"); }
+  else if (c.includes("cat runtime.env")) { validators.configInspected = true; output.push(validators.configFixed ? "PORT=8080\nLOG_LEVEL=info\nFEATURE_FLAG=false" : "PORT=9000\nLOG_LEVEL=debug\nFEATURE_FLAG=true"); evidence = ev("Inspected runtime service configuration", ["linux-service-config", "independent-debugging"], .72, "command"); }
+  else if ((c.includes("stat") || c.startsWith("ls -l")) && c.includes("runtime.env")) { validators.permissionsInspected = true; output.push(validators.permissionsFixed ? "600" : "644"); evidence = ev("Checked runtime secret-file permissions", ["linux-permissions", "independent-debugging"], .8, "command"); }
+  else if (c.startsWith("cp desired.env runtime.env") || (c.startsWith("sed ") && c.includes("runtime.env"))) { validators.configFixed = true; output.push("runtime.env restored to declared values"); evidence = ev("Reconciled confirmed service configuration drift", ["linux-service-config"], 1); }
+  else if (c.startsWith("chmod 600") && c.includes("runtime.env")) { validators.permissionsFixed = true; output.push("runtime.env mode set to 600"); evidence = ev("Secured runtime configuration permissions", ["linux-permissions"], 1); }
+  else if (c.includes("validate.sh")) {
+    if (validators.configFixed && validators.permissionsFixed) { validators.serviceValidated = true; output.push("config:pass", "permissions:pass mode=600", "CPL_VALIDATED"); evidence = ev("Validated Linux recovery in mission simulator", ["linux-service-config", "linux-permissions", "linux-observability", "independent-debugging"], .92); coachSignal = "complete"; }
+    else { output.push(validators.configFixed ? "config:pass" : "config:fail runtime.env differs from desired.env", validators.permissionsFixed ? "permissions:pass mode=600" : "permissions:fail expected=600 actual=644"); coachSignal = "debug"; }
+  }
+  else if (c === "clear") output.push("__CLEAR__");
+  else output.push("Use the LIVE LAB drawer for arbitrary shell execution. This mission terminal only mirrors evidence-bearing actions.");
+  return { validators, output, evidence, coachSignal };
+}
+
 function evaluateKubernetes(command: string, current: EngineState): EvaluationResult {
   const c = command.trim().toLowerCase(); const validators = { ...current.validators }; const output: string[] = []; let evidence: EvaluationResult["evidence"]; let coachSignal: EvaluationResult["coachSignal"] = "progress";
   if (c === "help") return { validators, output: ["Useful tools: kubectl get/describe/logs/patch, curl", "The deployment is healthy. Traffic is not."], coachSignal };
@@ -59,6 +83,7 @@ function evaluateTerraform(command: string, current: EngineState): EvaluationRes
 
 export function evaluateCommand(command: string, current: EngineState): EvaluationResult {
   const mission = getMission(current.missionId);
+  if (mission.domain === "linux") return evaluateLinux(command, current);
   if (mission.domain === "kubernetes") return evaluateKubernetes(command, current);
   if (mission.domain === "terraform") return evaluateTerraform(command, current);
   return evaluateDocker(command, current);
@@ -66,6 +91,7 @@ export function evaluateCommand(command: string, current: EngineState): Evaluati
 
 export function isMissionComplete(state: EngineState) {
   const mission = getMission(state.missionId);
+  if (mission.domain === "linux") return !!(state.validators.liveValidated || state.validators.serviceValidated);
   if (mission.domain === "docker") return !!state.validators.healthVerified;
   if (mission.domain === "kubernetes") return !!state.validators.trafficVerified;
   return !!state.validators.driftReconciled;
@@ -87,6 +113,12 @@ export function deriveSkills(state: EngineState, persisted: Record<string, numbe
 
 export function nextBestAction(state: EngineState) {
   const mission = getMission(state.missionId); const v = state.validators;
+  if (mission.domain === "linux") {
+    if (!v.logsInspected || !v.configInspected) return { step: "inspect", title: "Establish the failure signal", detail: "Inspect service.log and compare desired.env with runtime.env in the LIVE LAB." };
+    if (!v.driftFound && !v.configFixed) return { step: "hypothesis", title: "Name the drift", detail: "Use a diff to prove exactly which runtime values differ from declaration." };
+    if (!v.configFixed || !v.permissionsFixed) return { step: "repair", title: "Repair only confirmed state", detail: "Restore runtime.env to desired values and set its mode to 600." };
+    if (!v.liveValidated && !v.serviceValidated) return { step: "prove", title: "Run the live validator", detail: "Use Validate live environment in the LIVE LAB drawer to produce server-side evidence." };
+  }
   if (mission.domain === "docker") {
     if (!v.inspected && !v.imageBuilt) return { step: "inspect", title: "Orient before acting", detail: "Inspect the repository or Dockerfile and establish the build contract." };
     if (!v.imageBuilt) return { step: "build", title: "Create the artifact", detail: "Build an image named cpl-api from the repository." };
@@ -110,6 +142,7 @@ export function nextBestAction(state: EngineState) {
 }
 
 export function suggestedNextMission(completed: string[]) {
+  if (!completed.includes("linux-service-recovery")) return getMission("linux-service-recovery");
   if (!completed.includes("docker-production")) return getMission("docker-production");
   if (!completed.includes("k8s-recovery")) return getMission("k8s-recovery");
   return getMission("terraform-drift");

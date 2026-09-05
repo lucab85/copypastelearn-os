@@ -6,7 +6,7 @@ import type { EngineState, EvidenceEvent, UserProgress } from "@/lib/engine/type
 const KEY = "cpl-os-progress-v3";
 export const defaultProgress: UserProgress = {
   skillMastery: {}, completedMissions: [], missionStates: {},
-  entitlements: ["mission:docker-production", "mission:k8s-recovery", "mission:terraform-drift", "labs:interactive"],
+  entitlements: ["mission:linux-service-recovery", "mission:docker-production", "mission:k8s-recovery", "mission:terraform-drift", "labs:interactive"],
 };
 
 function mergeProgress(local: UserProgress, cloud?: UserProgress | null, cloudEntitlements: string[] = []): UserProgress {

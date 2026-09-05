@@ -1,9 +1,11 @@
 export type SkillStatus = "mastered" | "learning" | "locked";
 
+export type MissionDomain = "docker" | "kubernetes" | "terraform" | "linux";
+
 export type SkillState = {
   id: string;
   label: string;
-  domain: "docker" | "kubernetes" | "terraform" | "linux" | "debugging";
+  domain: MissionDomain | "debugging";
   mastery: number;
   target: number;
   evidence: number;
@@ -27,13 +29,14 @@ export type MissionDefinition = {
   shortTitle: string;
   description: string;
   outcome: string;
-  domain: "docker" | "kubernetes" | "terraform";
+  domain: MissionDomain;
   difficulty: "Foundation" | "Intermediate" | "Production";
   duration: string;
   requiredEntitlement: string;
   accent: string;
   steps: MissionStep[];
   starterLines: string[];
+  liveValidator?: "linux-service-recovery-v1";
 };
 
 export type EvidenceEvent = {
